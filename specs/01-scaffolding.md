@@ -16,7 +16,7 @@ tooling dependencies, ready for feature work.
    - `react-colorful` (color wheel picker)
    - `lucide-react` (icons)
    - `clsx` (class composition)
-   - `pngjs` (pure-JS PNG encode/decode for the server-side mask)
+   - `sharp` (server-side image decode/resize + PNG encode for the mask)
 4. Install dev deps:
    - `jest`, `jest-environment-jsdom`, `@testing-library/react`,
      `@testing-library/jest-dom`, `@types/jest`
@@ -25,7 +25,7 @@ tooling dependencies, ready for feature work.
 5. Add npm scripts: `test`, `test:watch`, `test:e2e`, `typecheck`, `lint`,
    `lint:fix`, `format`, `format:check`.
 6. Configure:
-   - `next.config.ts` with `serverExternalPackages: ["@google/genai", "pngjs"]`
+   - `next.config.ts` with `serverExternalPackages: ["@google/genai", "sharp"]`
    - `jest.config.ts` (via `next/jest`) + `jest.setup.ts`
    - `.prettierrc` / `.prettierignore`
    - `.env.example` documenting `GEMINI_API_KEY` + `GEMINI_MODEL`
