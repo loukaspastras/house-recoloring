@@ -15,6 +15,7 @@ can be implemented, verified, and committed independently (agile chunks).
 | [04-frontend-ui](./04-frontend-ui.md) | Upload, canvas workspace, controls, download | ✅ done |
 | [05-e2e-verification](./05-e2e-verification.md) | Playwright E2E + clean build | ✅ done |
 | [06-docs-deploy](./06-docs-deploy.md) | README, SUMMARY, git push | ✅ done |
+| [07-image-edit-mask](./07-image-edit-mask.md) | Green-paint image-edit segmentation (primary) | ✅ done |
 
 ## Conventions
 

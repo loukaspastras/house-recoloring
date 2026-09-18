@@ -4,14 +4,38 @@ import { prepareImage } from "./imageMeta";
 import { detectWallRegions } from "./gemini";
 import { mockWallRegions } from "./mock";
 import { maskToPng } from "./maskPng";
+import { segmentViaEdit } from "./editSegment";
+
+/** Segmentation method: "auto" (edit-first) | "edit" | "polygon". */
+const SEGMENT_MODE = (process.env.GEMINI_SEGMENT_MODE || "auto").toLowerCase();
 
 /**
- * Full server segmentation pipeline:
- *  1. decode image metadata (downscaling a copy for Gemini if necessary)
- *  2. call Gemini Vision once for wall polygons (mock fallback on failure)
- *  3. rasterize polygons into a binary mask at full native resolution
+ * Full server segmentation pipeline with a fallback ladder:
+ *   1. image-edit + green mask (source: "gemini-edit")
+ *   2. polygon JSON method (source: "gemini")
+ *   3. deterministic mock (source: "mock")
  */
 export async function segmentImage(buffer: Buffer): Promise<SegmentResult> {
+  if (SEGMENT_MODE === "edit") {
+    return segmentViaEdit(buffer);
+  }
+  if (SEGMENT_MODE === "polygon") {
+    return segmentViaPolygon(buffer);
+  }
+
+  try {
+    return await segmentViaEdit(buffer);
+  } catch (error) {
+    console.warn(
+      "[segment] edit segmentation failed, falling back to polygon:",
+      error instanceof Error ? error.message : error,
+    );
+    return segmentViaPolygon(buffer);
+  }
+}
+
+/** Polygon-JSON segmentation (the original Gemini vision method). */
+async function segmentViaPolygon(buffer: Buffer): Promise<SegmentResult> {
   const prepared = await prepareImage(buffer);
 
   let regions: WallRegion[];
@@ -22,7 +46,7 @@ export async function segmentImage(buffer: Buffer): Promise<SegmentResult> {
     source = regions.length > 0 ? "gemini" : "empty";
   } catch (error) {
     console.warn(
-      "[segment] Gemini segmentation failed, falling back to mock:",
+      "[segment] polygon segmentation failed, falling back to mock:",
       error instanceof Error ? error.message : error,
     );
     regions = mockWallRegions(prepared.width, prepared.height);

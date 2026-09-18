@@ -18,7 +18,7 @@ export interface WallRegion {
 }
 
 /** Provenance of the produced wall mask. */
-export type MaskSource = "gemini" | "mock" | "empty";
+export type MaskSource = "gemini-edit" | "gemini" | "mock" | "empty";
 
 /** Result of the server-side segmentation step. */
 export interface SegmentResult {

@@ -3,18 +3,18 @@
 **Project:** House Recoloring — AI-powered wall repainting web application
 **Repository:** <https://github.com/loukaspastras/house-recoloring>
 **Stack:** Next.js 16 (App Router) · TypeScript · Tailwind CSS v4 · Gemini
-Vision · HTML5 Canvas
+image editing · HTML5 Canvas
 
 ---
 
 ## 1. What it does
 
-Users upload a photo of a house. A **single** Gemini Vision call identifies the
-paintable walls and returns a full-resolution binary mask. From then on,
-recoloring happens **entirely in the browser at 60 FPS** — hue and saturation
-are swapped per-pixel while the original **lightness channel is preserved
-exactly**, keeping real shadows, highlights, and wall texture intact. A single
-**Download Image** button exports the recolored photo at full native
+Users upload a photo of a house. A **single** Gemini image-edit call repaints
+the paintable walls green and returns a full-resolution binary mask. From then
+on, recoloring happens **entirely in the browser at 60 FPS** — hue and
+saturation are swapped per-pixel while the original **lightness channel is
+preserved exactly**, keeping real shadows, highlights, and wall texture intact.
+A single **Download Image** button exports the recolored photo at full native
 resolution.
 
 ## 2. Final architecture
@@ -24,9 +24,9 @@ resolution.
 │  BROWSER (React, Canvas)     │  POST  │  SERVER (Next.js route handler)    │
 │                             │ ─────▶ │  /api/segment                       │
 │  UploadZone → segment()     │        │   ├ validate JPEG/PNG ≤ 15MB        │
-│                             │ ◀───── │   ├ Gemini Vision → wall polygons    │
-│  useWallPainter engine      │  mask  │   ├ rasterize → binary mask (full)  │
-│   • base layer (ImageData)  │  PNG   │   └ mock fallback (no key / error)  │
+│                             │ ◀───── │   ├ image-edit: paint walls green     │
+│  useWallPainter engine      │  mask  │   ├ green-pixel → binary mask (full) │
+│   • base layer (ImageData)  │  PNG   │   └ fallback: polygon → mock         │
 │   • lightness map (Uint16)  │        └────────────────────────────────────┘
 │   • AI mask + brush mask    │
 │   • 511-entry HSL LUT       │
@@ -36,16 +36,16 @@ resolution.
 └─────────────────────────────┘
 ```
 
-### Stage 1 — Server segmentation (`src/lib/segment.ts`, `src/app/api/segment/route.ts`)
+### Stage 1 — Server segmentation (`src/lib/editSegment.ts`, `src/lib/segment.ts`, `src/app/api/segment/route.ts`)
 
-- Gemini (`gemini-3.6-flash`, structured JSON output) returns **normalized
-  polygon coordinates** for each paintable wall/siding region.
-- `src/lib/rasterize.ts` converts polygons to a binary mask with a pure-JS
-  **even-odd scanline fill** at the source image's native resolution.
-- `src/lib/imageMeta.ts` downscales a copy for the API call when the source is
-  large (polygons stay normalized, so the mask stays full-res).
-- `sharp` encodes the mask as a PNG; a deterministic **mock** is returned when
-  the key is missing or the call fails (`X-Mask-Source: mock`).
+- **Primary:** a Gemini image-editing model (`gemini-3.1-flash-image`) repaints
+  the walls light green; `src/lib/greenMask.ts` flags green-dominant pixels
+  (`g − max(r,b) ≥ 15`) into a binary mask at the source image's **native
+  resolution** (the edited image is upscaled first).
+- **Fallback 1:** the original polygon-JSON method (`gemini-3.6-flash` →
+  normalized polygons → even-odd scanline rasterization).
+- **Fallback 2:** a deterministic mock mask when the key is missing or both
+  methods fail (`X-Mask-Source: mock`).
 
 ### Stage 2 — Browser compositing (`src/lib/paint/*`, `src/hooks/useWallPainter.ts`)
 
@@ -65,9 +65,10 @@ resolution.
 | --- | --- |
 | Drag-and-drop + browse upload (JPEG/PNG, ≤15 MB, validation) | ✅ |
 | `POST /api/segment` returning full-res binary wall mask | ✅ |
-| Gemini Vision wall detection (polygons + JSON schema) | ✅ |
-| Deterministic mock fallback (no key / API error) | ✅ |
+| Gemini image-edit wall detection (paint-walls-green → mask) | ✅ |
+| Polygon-JSON fallback + deterministic mock fallback | ✅ |
 | Pure-JS even-odd polygon rasterizer | ✅ |
+| Green-pixel mask extraction (pure, tested) | ✅ |
 | Real-time HSL recolor preserving lightness (sub-16 ms @1080p) | ✅ |
 | `react-colorful` wheel + hex input + 8 paint presets | ✅ |
 | Color-strength (opacity) slider | ✅ |
@@ -80,16 +81,16 @@ resolution.
 
 | Suite | Result |
 | --- | --- |
-| Jest unit tests | **48 passed** (7 suites) |
+| Jest unit tests | **53 passed** (8 suites) |
 | Playwright E2E (`e2e/flow.spec.ts`) | **1 passed** |
 | `npm run typecheck` | clean |
 | `npm run lint` | clean |
 | `npm run build` | clean |
 
-Unit coverage includes: even-odd rasterizer, PNG round-trip, Gemini JSON
-parsing, API route validation/fallback, HSL↔RGB round-trips, **exact lightness
-preservation**, brush mask math, export blob/filename, and a
-**sub-16 ms 1080p swap benchmark**.
+Unit coverage includes: even-odd rasterizer, green-mask extraction, PNG
+round-trip, Gemini JSON parsing, API route validation/fallback, HSL↔RGB
+round-trips, **exact lightness preservation**, brush mask math, export
+blob/filename, and a **sub-16 ms 1080p swap benchmark**.
 
 E2E verifies: upload → segment (`image/png`, `X-Mask-Source: mock`) → canvas
 ready → preset color changes with **zero extra API calls** → mask toggle →
